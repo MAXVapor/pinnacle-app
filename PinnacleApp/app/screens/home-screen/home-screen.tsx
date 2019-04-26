@@ -1,5 +1,5 @@
 import * as React from "react"
-import { View, Image, ViewStyle, TextStyle, ImageStyle, SafeAreaView, StatusBar } from "react-native"
+import { ActivityIndicator, Alert, View, Image, ViewStyle, TextStyle, ImageStyle, SafeAreaView, StatusBar } from "react-native"
 import { NavigationScreenProps } from "react-navigation"
 import { Text } from "../../components/text"
 import { Button } from "../../components/button"
@@ -8,6 +8,7 @@ import { Wallpaper } from "../../components/wallpaper"
 import { Header } from "../../components/header"
 import { color, spacing } from "../../theme"
 import { bowserLogo } from "."
+import { BleManager, Device } from "react-native-ble-plx"
 
 const FULL: ViewStyle = { flex: 1 }
 const CONTAINER: ViewStyle = {
@@ -60,6 +61,7 @@ const CONTENT: TextStyle = {
   fontSize: 15,
   lineHeight: 22,
   marginBottom: spacing[5],
+  textAlign: "center",
 }
 const CONTINUE: ViewStyle = {
   paddingVertical: spacing[4],
@@ -78,12 +80,52 @@ const FOOTER_CONTENT: ViewStyle = {
   paddingHorizontal: spacing[4],
 }
 
+const manager = new BleManager();
+
 export interface HomeScreenProps extends NavigationScreenProps<{}> {}
 
-export class HomeScreen extends React.Component<HomeScreenProps, {}> {
+export class HomeScreen extends React.Component<HomeScreenProps, {bleDevice}> {
+
+  async componentDidMount() {
+    manager.onStateChange((state) => {
+      if (state === 'PoweredOn') {
+        this.scanAndConnect();
+      }
+    }, true);
+  }
+
+  displayAlert() {
+    Alert.alert(
+      'Error Scanning for Devices',
+      '',
+      [
+        {text: 'OK', onPress: () => console.log('OK Pressed')},
+      ],
+      {cancelable: false},
+    );
+  }
+
+  scanAndConnect() {
+    this.setState({bleDevice: null});
+    manager.startDeviceScan(null, null, (error, device) => {
+        if (error) {
+          this.displayAlert();
+          return;
+        }
+        if (device.name === 'Pinnacle') {
+            this.setState({bleDevice: device})
+            manager.stopDeviceScan();
+            return;
+        }
+    });
+  }
+
   nextScreen = () => this.props.navigation.navigate("settings")
 
   render() {
+
+    const bleDevice = this.state && this.state.bleDevice;
+
     return (
       <View style={FULL}>
         <StatusBar barStyle="light-content" />
@@ -96,12 +138,13 @@ export class HomeScreen extends React.Component<HomeScreenProps, {}> {
               titleStyle={HEADER_TITLE}
             />
             <Text style={TITLE_WRAPPER}>
-              <Text style={TITLE} text="No Devices Found" />
+            <Text style={TITLE} text={bleDevice ? ` ` : `Please Wait`} />
             </Text>
             <Image source={bowserLogo} style={BOWSER} />
             <Text style={CONTENT}>
-              I could not find any Pinnacle Devices, Tap the Settings button below to configure one.
+            {bleDevice ? '1 Device Found.' : 'Searching for Pinnacle devices'}
             </Text>
+            <ActivityIndicator size="large" color="#ffffff" animating={bleDevice ? false : true} />
           </Screen>
         </SafeAreaView>
         <SafeAreaView style={FOOTER}>
@@ -109,8 +152,8 @@ export class HomeScreen extends React.Component<HomeScreenProps, {}> {
             <Button
               style={CONTINUE}
               textStyle={CONTINUE_TEXT}
-              tx="homeScreen.settings"
-              onPress={this.nextScreen}
+              text="REFRESH"
+              onPress={() => this.scanAndConnect()}
               />
           </View>
         </SafeAreaView>
